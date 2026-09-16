@@ -12,10 +12,13 @@ dist
 /playwright-report/
 /test-results/
 
-# vercel / netlify
+# vercel / netlify / cloudflare
 .vercel
 .netlify
+.netlify-functions
 netlify-functions
+.wrangler
+.dev.vars
 
 # Database import checkpoints
 *_import_checkpoint.json

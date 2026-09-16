@@ -19,7 +19,9 @@
     "db:setup": "pnpm db:migrate && pnpm db:seed-authors && pnpm db:seed-books",
     "db:seed-authors": "tsx src/lib/db/seed-authors.ts",
     "db:seed-books": "tsx src/lib/db/seed-books.ts",
-    "db:seed-thumbhash": "tsx src/lib/db/seed-thumbhash.ts"
+    "db:seed-thumbhash": "tsx src/lib/db/seed-thumbhash.ts",
+    "preview:cloudflare": "CLOUDFLARE=1 waku build && wrangler dev",
+    "deploy:cloudflare": "CLOUDFLARE=1 waku build && wrangler deploy"
   },
   "dependencies": {
     "@ariakit/react": "^0.4.38",
@@ -63,7 +65,8 @@
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.60.1"
+    "typescript-eslint": "^8.60.1",
+    "wrangler": "^4.131.2"
   },
   "packageManager": "pnpm@11.24.0"
 }
