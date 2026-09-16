@@ -1,0 +1,30 @@
+node_modules
+dist
+.env*
+!.env.sample
+*.tsbuildinfo
+.cache
+.DS_Store
+*.pem
+
+# testing
+/coverage
+/playwright-report/
+/test-results/
+
+# vercel / netlify
+.vercel
+.netlify
+netlify-functions
+
+# Database import checkpoints
+*_import_checkpoint.json
+/data/
+
+# seed scripts
+book_import_checkpoint.json
+author_import_checkpoint.json
+thumbhash_update_checkpoint.json
+
+# generated route types
+src/pages.gen.ts

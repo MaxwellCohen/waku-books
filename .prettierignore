@@ -1,0 +1,14 @@
+.next
+node_modules
+playwright-report
+test-results
+pnpm-lock.yaml
+
+# Newline-delimited seed data, not valid single-expression JSON
+src/lib/db/authors.json
+src/lib/db/books.json
+src/lib/db/migrations
+dist
+
+# Vendored agent skills, kept byte-identical to upstream
+.agents

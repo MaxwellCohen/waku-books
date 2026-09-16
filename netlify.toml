@@ -1,0 +1,16 @@
+[build]
+  command = "pnpm run build"
+  publish = "dist/public"
+
+[build.environment]
+  NODE_VERSION = "24"
+  NETLIFY = "1"
+  PNPM_FLAGS = "--shamefully-hoist"
+
+[functions]
+  included_files = ["private/**"]
+  directory = "netlify-functions"
+
+[dev]
+  command = "pnpm dev"
+  targetPort = 3000
