@@ -6,6 +6,7 @@ import { GENERATED_PREVIEW_BOOKS } from '@/features/book/book-preview-catalog';
 import type { BookFilters, BookQuery } from '@/features/book/book-utils';
 import { SAMPLE_BOOKS } from '@/features/book/data/sample-books';
 import { db } from '@/lib/db/drizzle';
+import { withTtlCache } from '@/lib/catalog-cache';
 import { authors, books, bookToAuthor } from '@/lib/db/schema';
 
 export type BookSummary = {
@@ -45,9 +46,9 @@ const imageFilter = () => and(not(isNull(books.image_url)), sql`${books.image_ur
 
 const searchFilter = (search: string) =>
   search
-    // Parse and quote lexemes before adding prefix operators, so punctuation
-    // stays search text rather than becoming user-supplied tsquery syntax.
-    ? sql`to_tsvector('english', ${books.title_tsv}) @@ (
+    ? // Parse and quote lexemes before adding prefix operators, so punctuation
+      // stays search text rather than becoming user-supplied tsquery syntax.
+      sql`to_tsvector('english', ${books.title_tsv}) @@ (
         SELECT string_agg(quote_literal(term) || ':*', ' & ')::tsquery
         FROM unnest(tsvector_to_array(to_tsvector('english', unaccent(${search})))) AS terms(term)
       )`
@@ -110,7 +111,7 @@ function getPreviewCount(filters: BookFilters): number {
   return filterPreview(filters).length;
 }
 
-export async function getBooksPage(query: BookQuery): Promise<BookSummary[]> {
+async function loadBooksPage(query: BookQuery): Promise<BookSummary[]> {
   const database = db;
   if (!database) return getPreviewBooks(query);
 
@@ -128,7 +129,7 @@ export async function getBooksPage(query: BookQuery): Promise<BookSummary[]> {
     .offset((query.page - 1) * ITEMS_PER_PAGE);
 }
 
-export async function getBooksCount(filters: BookFilters): Promise<number> {
+async function loadBooksCount(filters: BookFilters): Promise<number> {
   const database = db;
   if (!database) return getPreviewCount(filters);
 
@@ -136,7 +137,7 @@ export async function getBooksCount(filters: BookFilters): Promise<number> {
   return total;
 }
 
-export async function getBookById(id: string): Promise<BookDetails | null> {
+async function loadBookById(id: string): Promise<BookDetails | null> {
   const bookId = Number(id);
   if (!Number.isInteger(bookId)) return null;
 
@@ -170,3 +171,7 @@ export async function getBookById(id: string): Promise<BookDetails | null> {
 
   return result[0] ?? null;
 }
+
+export const getBooksPage = withTtlCache('getBooksPage', loadBooksPage);
+export const getBooksCount = withTtlCache('getBooksCount', loadBooksCount);
+export const getBookById = withTtlCache('getBookById', loadBookById);
