@@ -2,6 +2,7 @@ import { BookOpen, Building2, CalendarDays, Globe, Hash } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { StarRating } from '@/components/ui/star-rating';
 import { waitForApiDelay } from '@/lib/api-delay';
+import { EMPTY_IMAGE_URL, getLargeBookImageUrl } from '@/features/book/book-constants';
 import { getBookById } from '@/features/book/book-queries';
 import { formatCount, getLanguageLabel } from '@/features/book/book-utils';
 import { BookCover, BookCoverSkeleton } from '@/features/book/components/book-cover';
@@ -20,6 +21,15 @@ export async function BookDetail({ delayMs = 0, id }: { delayMs?: number; id: st
 
   return (
     <article className="flex flex-col gap-8 md:flex-row md:gap-10">
+      {book.image_url && book.image_url !== EMPTY_IMAGE_URL ? (
+        <link
+          rel="preload"
+          as="image"
+          href={getLargeBookImageUrl(book.image_url)}
+          imageSizes={DETAIL_SIZES}
+          fetchPriority="high"
+        />
+      ) : null}
       <div className="mx-auto w-40 shrink-0 sm:w-48 md:mx-0 md:w-72">
         <BookCover
           className="shadow-soft ring-divider/70 dark:ring-divider-dark/70 ring-1"
