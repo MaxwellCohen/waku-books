@@ -50,11 +50,29 @@ function isCacheableHtmlRequest(request: Request): boolean {
   return request.method === "GET" && delayFromRequest(request) <= 0;
 }
 
-function applyHtmlCacheHeaders(headers: Headers) {
-  headers.set("Cache-Control", HTML_CACHE_CONTROL);
-  headers.set("CDN-Cache-Control", HTML_CACHE_CONTROL);
-  headers.set("Vercel-CDN-Cache-Control", HTML_CACHE_CONTROL);
-  headers.set("Netlify-CDN-Cache-Control", HTML_CACHE_CONTROL);
+const UNCACHED_HTML = "private, no-store";
+
+function cacheControlForRequest(request: Request) {
+  return delayFromRequest(request) > 0 ? UNCACHED_HTML : HTML_CACHE_CONTROL;
+}
+
+function withCacheControlHeaders(response: Response, cacheControl: string) {
+  const headers = new Headers(response.headers);
+  headers.set("Cache-Control", cacheControl);
+  headers.set("CDN-Cache-Control", cacheControl);
+  headers.set("Vercel-CDN-Cache-Control", cacheControl);
+  headers.set("Netlify-CDN-Cache-Control", cacheControl);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+/** Cloudflare Workers freeze Response headers; copy them onto a new Response. */
+export function htmlResponseWithCacheHeaders(request: Request, response: Response): Response {
+  if (!response.headers.get("content-type")?.includes("text/html")) return response;
+  return withCacheControlHeaders(response, cacheControlForRequest(request));
 }
 
 async function platformGet<T>(key: string): Promise<T | undefined> {
@@ -187,9 +205,7 @@ export async function storeCachedHtml(request: Request, response: Response): Pro
   const cache = edgeCache();
   if (!cache) return;
   try {
-    const copy = response.clone();
-    applyHtmlCacheHeaders(copy.headers);
-    await cache.put(request, copy);
+    await cache.put(request, withCacheControlHeaders(response.clone(), HTML_CACHE_CONTROL));
   } catch {
     // Best-effort HTML edge cache.
   }
