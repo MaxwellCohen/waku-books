@@ -12,11 +12,11 @@ const memory = new Map<string, Entry<unknown>>();
 const inflight = new Map<string, Promise<unknown>>();
 
 function isVercel() {
-  return typeof process !== "undefined" && Boolean(process.env.VERCEL) && !process.env.CLOUDFLARE;
+  return Boolean(envFlag("VERCEL")) && !envFlag("CLOUDFLARE");
 }
 
 function isNetlify() {
-  return typeof process !== "undefined" && Boolean(process.env.NETLIFY) && !process.env.CLOUDFLARE;
+  return Boolean(envFlag("NETLIFY") || envFlag("NETLIFY_BLOBS_CONTEXT")) && !envFlag("CLOUDFLARE") && !envFlag("VERCEL");
 }
 
 function memoryGet<T>(key: string): T | undefined {
@@ -28,13 +28,33 @@ function memorySet<T>(key: string, value: T) {
   memory.set(key, { expiresAt: Date.now() + TTL_MS, value });
 }
 
+type CatalogKv = {
+  get(key: string, type: "json"): Promise<unknown>;
+  put(key: string, value: string, options?: { expirationTtl: number }): Promise<void>;
+};
+
+let catalogKv: CatalogKv | undefined;
+
+/** Bind Workers KV so catalog queries persist across isolates (like Next `use cache`). */
+export function bindCatalogCache(kv: CatalogKv | undefined) {
+  if (kv) catalogKv = kv;
+}
+
 function edgeRequest(key: string) {
-  return new Request(`https://books-catalog-cache.local/v1/${encodeURIComponent(key)}`);
+  return new Request(`https://example.com/books-catalog-cache/v1/${encodeURIComponent(key)}`);
 }
 
 function edgeCache(): Cache | undefined {
   const cachesApi = (globalThis as typeof globalThis & { caches?: CacheStorage }).caches;
   return cachesApi?.default;
+}
+
+function envFlag(name: string) {
+  try {
+    return typeof process !== "undefined" ? process.env?.[name] : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function delayFromRequest(request: Request): number {
@@ -77,6 +97,16 @@ export function htmlResponseWithCacheHeaders(request: Request, response: Respons
 
 async function platformGet<T>(key: string): Promise<T | undefined> {
   try {
+    if (catalogKv) {
+      const value = await catalogKv.get(key, "json");
+      if (value != null) return value as T;
+      return;
+    }
+  } catch {
+    // KV optional / not bound.
+  }
+
+  try {
     if (isVercel()) {
       const { getCache } = await import("@vercel/functions");
       const value = await getCache({ namespace: "catalog" }).get(key);
@@ -110,6 +140,17 @@ async function platformGet<T>(key: string): Promise<T | undefined> {
 }
 
 async function platformSet<T>(key: string, value: T): Promise<void> {
+  try {
+    if (catalogKv) {
+      await catalogKv.put(key, JSON.stringify(value), {
+        expirationTtl: CATALOG_CACHE_REVALIDATE_SECONDS,
+      });
+      return;
+    }
+  } catch {
+    // KV optional / not bound.
+  }
+
   try {
     if (isVercel()) {
       const { getCache } = await import("@vercel/functions");

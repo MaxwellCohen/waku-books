@@ -1,9 +1,16 @@
 import type { MiddlewareHandler } from 'hono';
-import { htmlResponseWithCacheHeaders, matchCachedHtml, storeCachedHtml } from '@/lib/catalog-cache';
+import {
+  bindCatalogCache,
+  htmlResponseWithCacheHeaders,
+  matchCachedHtml,
+  storeCachedHtml,
+} from '@/lib/catalog-cache';
 import { getApiDelayMs } from '@/lib/url-state';
 
 export default function htmlCacheControl(): MiddlewareHandler {
   return async (c, next) => {
+    bindCatalogCache(c.env?.CATALOG_CACHE);
+
     if (c.req.method === 'GET') {
       const cached = await matchCachedHtml(c.req.raw);
       if (cached) return cached;
