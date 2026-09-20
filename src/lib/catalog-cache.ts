@@ -106,26 +106,30 @@ async function platformGet<T>(key: string): Promise<T | undefined> {
     // KV optional / not bound.
   }
 
-  try {
-    if (isVercel()) {
-      const { getCache } = await import("@vercel/functions");
-      const value = await getCache({ namespace: "catalog" }).get(key);
-      if (value != null) return value as T;
-      return;
+  // Keep @vercel/functions and @netlify/blobs out of the Worker bundle.
+  // Rolldown otherwise injects createRequire() and CF deploy validation fails.
+  if (!import.meta.env.CLOUDFLARE) {
+    try {
+      if (isVercel()) {
+        const { getCache } = await import("@vercel/functions");
+        const value = await getCache({ namespace: "catalog" }).get(key);
+        if (value != null) return value as T;
+        return;
+      }
+    } catch {
+      // Optional dependency / not running on Vercel.
     }
-  } catch {
-    // Optional dependency / not running on Vercel.
-  }
 
-  try {
-    if (isNetlify()) {
-      const { getStore } = await import("@netlify/blobs");
-      const stored = (await getStore("catalog-cache").get(key, { type: "json" })) as Entry<T> | null;
-      if (stored && stored.expiresAt > Date.now()) return stored.value;
-      return;
+    try {
+      if (isNetlify()) {
+        const { getStore } = await import("@netlify/blobs");
+        const stored = (await getStore("catalog-cache").get(key, { type: "json" })) as Entry<T> | null;
+        if (stored && stored.expiresAt > Date.now()) return stored.value;
+        return;
+      }
+    } catch {
+      // Optional dependency / not running on Netlify.
     }
-  } catch {
-    // Optional dependency / not running on Netlify.
   }
 
   try {
@@ -151,30 +155,32 @@ async function platformSet<T>(key: string, value: T): Promise<void> {
     // KV optional / not bound.
   }
 
-  try {
-    if (isVercel()) {
-      const { getCache } = await import("@vercel/functions");
-      await getCache({ namespace: "catalog" }).set(key, value, {
-        tags: ["catalog"],
-        ttl: CATALOG_CACHE_REVALIDATE_SECONDS,
-      });
-      return;
+  if (!import.meta.env.CLOUDFLARE) {
+    try {
+      if (isVercel()) {
+        const { getCache } = await import("@vercel/functions");
+        await getCache({ namespace: "catalog" }).set(key, value, {
+          tags: ["catalog"],
+          ttl: CATALOG_CACHE_REVALIDATE_SECONDS,
+        });
+        return;
+      }
+    } catch {
+      // Optional dependency / not running on Vercel.
     }
-  } catch {
-    // Optional dependency / not running on Vercel.
-  }
 
-  try {
-    if (isNetlify()) {
-      const { getStore } = await import("@netlify/blobs");
-      await getStore("catalog-cache").setJSON(key, {
-        expiresAt: Date.now() + TTL_MS,
-        value,
-      });
-      return;
+    try {
+      if (isNetlify()) {
+        const { getStore } = await import("@netlify/blobs");
+        await getStore("catalog-cache").setJSON(key, {
+          expiresAt: Date.now() + TTL_MS,
+          value,
+        });
+        return;
+      }
+    } catch {
+      // Optional dependency / not running on Netlify.
     }
-  } catch {
-    // Optional dependency / not running on Netlify.
   }
 
   try {
