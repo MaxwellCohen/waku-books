@@ -21,7 +21,8 @@
     "db:seed-books": "tsx src/lib/db/seed-books.ts",
     "db:seed-thumbhash": "tsx src/lib/db/seed-thumbhash.ts",
     "preview:cloudflare": "CLOUDFLARE=1 waku build && node scripts/sync-cloudflare-wrangler.mjs && npx --yes wrangler@4.131.2 dev",
-    "deploy:cloudflare": "CLOUDFLARE=1 waku build && node scripts/sync-cloudflare-wrangler.mjs && npx --yes wrangler@4.131.2 deploy"
+    "deploy:cloudflare": "CLOUDFLARE=1 waku build && node scripts/sync-cloudflare-wrangler.mjs && npx --yes wrangler@4.131.2 deploy",
+    "test:features": "node feature-tests/run.mjs"
   },
   "dependencies": {
     "@ariakit/react": "^0.4.38",
@@ -29,6 +30,7 @@
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@neondatabase/serverless": "^1.1.0",
     "@netlify/blobs": "^11.1.0",
+    "@preact/signals-react": "3.12.0",
     "@vercel/analytics": "^2.0.1",
     "@vercel/functions": "^3.9.8",
     "@vercel/speed-insights": "^2.0.0",
@@ -67,11 +69,13 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
+    "rollup-plugin-visualizer": "7.3.0",
     "sharp": "^0.35.3",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.23.12",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.60.1"
+    "typescript-eslint": "^8.60.1",
+    "vite-imagetools": "12.0.2"
   },
   "packageManager": "pnpm@11.24.0"
 }

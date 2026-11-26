@@ -1,0 +1,50 @@
+{
+  "css-inlining": {
+    "claimedLabel": "manual",
+    "method": "Hand-rolled: import route CSS with Vite `?inline`, render React 19 <style href precedence> (hoisted into <head>)"
+  },
+  "font-optimization": {
+    "claimedLabel": "third-party",
+    "method": "@fontsource-variable/geist imported in styles.css (self-hosted, font-display: swap) + hand-added <link rel=preload as=font> via `?url`",
+    "note": "preload link is hand-written; Fontsource only supplies files + @font-face"
+  },
+  "image-pipeline": {
+    "claimedLabel": "third-party",
+    "method": "vite-imagetools (build-time resize to 200/400/800w, webp/avif, `as=srcset`) + plain <img srcSet width height loading=lazy>"
+  },
+  "caching": {
+    "claimedLabel": "first-party",
+    "method": "waku-cache 0.0.1 (separate wakujs-org package) cache.fn with memoryStore, 4s TTL, cache.invalidate from a 'use server' action",
+    "suggestedLabel": "third-party",
+    "note": "needs `pnpm add waku-cache` (v0.0.x, outside waku core; 0.0.2 needs waku>=rc.4). Side finding: on Node 26 every src/pages/_api route throws 'TypeError: Illegal invocation' (undici Request duplex brand check in waku rc.0 handleHttpRequest), so invalidation uses a server action"
+  },
+  "route-prefetching": {
+    "claimedLabel": "first-party",
+    "method": "useRouter().prefetch() on hover (stable) + <Link unstable_prefetchOnView> (experimental prop) from waku/router/client",
+    "note": "stable path is useRouter().prefetch() wired by hand to onMouseEnter; Link's automatic prefetch props are unstable_"
+  },
+  "islands": {
+    "claimedLabel": "first-party",
+    "method": "RSC server component (no client JS) + 'use client' counter island + <Slice id lazy> dynamic slice on a static page"
+  },
+  "render-modes": {
+    "claimedLabel": "first-party",
+    "method": "Per-page getConfig({ render: 'static' | 'dynamic' })"
+  },
+  "reactivity": {
+    "claimedLabel": "third-party",
+    "method": "@preact/signals-react signal passed directly into JSX; useState counter as control"
+  },
+  "bundle-analysis": {
+    "claimedLabel": "third-party",
+    "method": "rollup-plugin-visualizer added to waku.config.ts vite.plugins (client env) when ANALYZE=1"
+  },
+  "third-party-scripts": {
+    "claimedLabel": "manual",
+    "method": "Hand-rolled: React 19-hoisted <script async> + LazyScript client component injecting after load/requestIdleCallback"
+  },
+  "multi-host-deployment": {
+    "claimedLabel": "first-party",
+    "method": "Built-in adapters auto-selected by env: waku build with none / NETLIFY=1 / VERCEL=1 / CLOUDFLARE=1"
+  }
+}
