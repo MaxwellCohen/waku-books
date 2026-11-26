@@ -1,8 +1,8 @@
 {
   "framework": "waku",
   "repo": "waku-books",
-  "commit": "11a3642389deae29f38d77b830502ec501cd2a8c",
-  "ranAt": "2026-11-26T05:44:21.122Z",
+  "commit": "d5bc59535b02e78c2dff68e2bcdf01559380c925",
+  "ranAt": "2026-11-26T05:46:14.025Z",
   "results": {
     "css-inlining": {
       "claimedLabel": "manual",
@@ -28,8 +28,8 @@
     "caching": {
       "claimedLabel": "first-party",
       "status": "pass",
-      "method": "waku-cache 0.0.1 (separate wakujs-org package) cache.fn with memoryStore, 4s TTL, cache.invalidate from a 'use server' action",
-      "evidence": "2 requests → same cached value 2@2026-11-26T05:43:16.406Z (uncached differed); after 4000ms TTL → 3@2026-11-26T05:43:21.191Z (then reused); after cache.invalidate server action → 4@2026-11-26T05:43:21.879Z (then reused) — needs `pnpm add waku-cache` (v0.0.x, outside waku core; 0.0.2 needs waku>=rc.4). Side finding: on Node 26 every src/pages/_api route throws 'TypeError: Illegal invocation' (undici Request duplex brand check in waku rc.0 handleHttpRequest), so invalidation uses a server action",
+      "method": "waku-cache 0.0.2 (separate wakujs-org package) cache.fn with memoryStore, 4s TTL, cache.invalidate from a 'use server' action",
+      "evidence": "2 requests → same cached value 2@2026-11-26T05:45:14.635Z (uncached differed); after 4000ms TTL → 3@2026-11-26T05:45:19.417Z (then reused); after cache.invalidate server action → 4@2026-11-26T05:45:20.124Z (then reused) — needs `pnpm add waku-cache` (v0.0.x, outside waku core; 0.0.2 needs waku>=rc.4). Side finding: on Node 26 every src/pages/_api route throws 'TypeError: Illegal invocation' (undici Request duplex brand check in handleHttpRequest; seen on waku rc.0, not rechecked on rc.5), so invalidation uses a server action",
       "suggestedLabel": "third-party",
       "test": "feature-tests/caching.spec.ts"
     },
@@ -51,7 +51,7 @@
       "claimedLabel": "first-party",
       "status": "pass",
       "method": "Per-page getConfig({ render: 'static' | 'dynamic' })",
-      "evidence": "static: dist/public/.../static/index.html exists, served stamp 2026-11-26T05:43:00.490Z on both requests; dynamic: no HTML file, stamps 2026-11-26T05:44:19.421Z → 2026-11-26T05:44:19.487Z",
+      "evidence": "static: dist/public/.../static/index.html exists, served stamp 2026-11-26T05:44:58.751Z on both requests; dynamic: no HTML file, stamps 2026-11-26T05:46:12.263Z → 2026-11-26T05:46:12.338Z",
       "test": "feature-tests/render-modes.spec.ts"
     },
     "reactivity": {
@@ -72,7 +72,7 @@
       "claimedLabel": "manual",
       "status": "pass",
       "method": "Hand-rolled: React 19-hoisted <script async> + LazyScript client component injecting after load/requestIdleCallback",
-      "evidence": "async tag in head (no blocking scripts); lazy script injected after load: ran at 186ms ≥ loadEventEnd 69ms; async ran at 64ms",
+      "evidence": "async tag in head (no blocking scripts); lazy script injected after load: ran at 196ms ≥ loadEventEnd 63ms; async ran at 58ms",
       "test": "feature-tests/third-party-scripts.spec.ts"
     },
     "multi-host-deployment": {
