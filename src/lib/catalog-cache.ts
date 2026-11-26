@@ -1,65 +1,16 @@
+import { createStorage, type Driver } from 'unstorage';
+import { createCache } from 'waku-cache';
+import type { CacheStore } from 'waku-cache';
+import { memoryStore } from 'waku-cache/stores/memory';
+import { unstorageStore } from 'waku-cache/stores/unstorage';
+
 /** Matches Next `cacheLife('hours')`: revalidate 1h, expire 24h. */
 export const CATALOG_CACHE_REVALIDATE_SECONDS = 3600;
 export const CATALOG_CACHE_EXPIRE_SECONDS = 86400;
 
 /** Match next-books HTML Cache-Control per host (Vercel vs Netlify/Cloudflare/local). */
 export const VERCEL_DOCUMENT_CACHE_CONTROL = 'public, max-age=0, must-revalidate';
-export const PRIVATE_DOCUMENT_CACHE_CONTROL =
-  'private, no-cache, no-store, max-age=0, must-revalidate';
-
-const TTL_MS = CATALOG_CACHE_REVALIDATE_SECONDS * 1000;
-
-type Entry<T> = { expiresAt: number; value: T };
-
-const memory = new Map<string, Entry<unknown>>();
-const inflight = new Map<string, Promise<unknown>>();
-
-function isVercel() {
-  return Boolean(envFlag('VERCEL')) && !envFlag('CLOUDFLARE');
-}
-
-function isNetlify() {
-  return (
-    Boolean(envFlag('NETLIFY') || envFlag('NETLIFY_BLOBS_CONTEXT')) &&
-    !envFlag('CLOUDFLARE') &&
-    !envFlag('VERCEL')
-  );
-}
-
-/** Public document Cache-Control matching next-books on this host. */
-export function hostDocumentCacheControl(): string {
-  return isVercel() ? VERCEL_DOCUMENT_CACHE_CONTROL : PRIVATE_DOCUMENT_CACHE_CONTROL;
-}
-
-function memoryGet<T>(key: string): T | undefined {
-  const hit = memory.get(key) as Entry<T> | undefined;
-  if (hit && hit.expiresAt > Date.now()) return hit.value;
-}
-
-function memorySet<T>(key: string, value: T) {
-  memory.set(key, { expiresAt: Date.now() + TTL_MS, value });
-}
-
-type CatalogKv = {
-  get(key: string, type: 'json'): Promise<unknown>;
-  put(key: string, value: string, options?: { expirationTtl: number }): Promise<void>;
-};
-
-let catalogKv: CatalogKv | undefined;
-
-/** Bind Workers KV so catalog queries persist across isolates (like Next `use cache`). */
-export function bindCatalogCache(kv: CatalogKv | undefined) {
-  if (kv) catalogKv = kv;
-}
-
-function edgeRequest(key: string) {
-  return new Request(`https://example.com/books-catalog-cache/v1/${encodeURIComponent(key)}`);
-}
-
-function edgeCache(): Cache | undefined {
-  const cachesApi = (globalThis as typeof globalThis & { caches?: CacheStorage }).caches;
-  return cachesApi?.default;
-}
+export const PRIVATE_DOCUMENT_CACHE_CONTROL = 'private, no-cache, no-store, max-age=0, must-revalidate';
 
 function envFlag(name: string) {
   try {
@@ -67,6 +18,21 @@ function envFlag(name: string) {
   } catch {
     return undefined;
   }
+}
+
+function isVercel() {
+  return Boolean(envFlag('VERCEL')) && !envFlag('CLOUDFLARE');
+}
+
+function isNetlify() {
+  return (
+    Boolean(envFlag('NETLIFY') || envFlag('NETLIFY_BLOBS_CONTEXT')) && !envFlag('CLOUDFLARE') && !envFlag('VERCEL')
+  );
+}
+
+/** Public document Cache-Control matching next-books on this host. */
+export function hostDocumentCacheControl(): string {
+  return isVercel() ? VERCEL_DOCUMENT_CACHE_CONTROL : PRIVATE_DOCUMENT_CACHE_CONTROL;
 }
 
 /** Cloudflare Workers freeze Response headers; copy them onto a new Response. */
@@ -84,141 +50,73 @@ export function htmlResponseWithCacheHeaders(_request: Request, response: Respon
   });
 }
 
-async function platformGet<T>(key: string): Promise<T | undefined> {
-  try {
-    if (catalogKv) {
-      const value = await catalogKv.get(key, 'json');
-      if (value != null) return value as T;
-      return;
-    }
-  } catch {
-    // KV optional / not bound.
-  }
+type KvBinding = {
+  get(key: string): Promise<unknown>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+  delete(key: string): Promise<void>;
+};
 
-  // Keep @vercel/functions and @netlify/blobs out of the Worker bundle.
-  // Rolldown otherwise injects createRequire() and CF deploy validation fails.
-  if (!import.meta.env.CLOUDFLARE) {
-    try {
+let kvBinding: KvBinding | undefined;
+
+/** Bind Workers KV so catalog queries persist across isolates (like Next `use cache`). */
+export function bindCatalogCache(kv: KvBinding | undefined) {
+  if (kv) kvBinding = kv;
+}
+
+let platform: Promise<CacheStore | null> | undefined;
+
+/** The host's shared store (Workers KV, Vercel Runtime Cache, Netlify Blobs), via unstorage. */
+function platformStore(): Promise<CacheStore | null> {
+  return (platform ??= (async () => {
+    let driver: Driver | undefined;
+    if (kvBinding) {
+      const { default: cloudflareKV } = await import('unstorage/drivers/cloudflare-kv-binding');
+      driver = cloudflareKV({ binding: kvBinding });
+    } else if (!import.meta.env.CLOUDFLARE) {
+      // Keep @vercel/functions and @netlify/blobs out of the Worker bundle.
+      // Rolldown otherwise injects createRequire() and CF deploy validation fails.
       if (isVercel()) {
-        const { getCache } = await import('@vercel/functions');
-        const value = await getCache({ namespace: 'catalog' }).get(key);
-        if (value != null) return value as T;
-        return;
+        const { default: vercelRuntimeCache } = await import('unstorage/drivers/vercel-runtime-cache');
+        driver = vercelRuntimeCache({ base: 'catalog', tags: ['catalog'] });
+      } else if (isNetlify()) {
+        const { default: netlifyBlobs } = await import('unstorage/drivers/netlify-blobs');
+        driver = netlifyBlobs({ name: 'catalog-cache' });
       }
-    } catch {
-      // Optional dependency / not running on Vercel.
     }
+    return driver ? unstorageStore(createStorage({ driver })) : null;
+  })().catch(() => null));
+}
 
+const memory = memoryStore();
+
+/** Per-isolate memory in front of the host's shared store; platform failures fall through to the loader. */
+const tieredStore: CacheStore = {
+  async get(key) {
+    const hit = await memory.get(key);
+    if (hit) return hit;
     try {
-      if (isNetlify()) {
-        const { getStore } = await import('@netlify/blobs');
-        const stored = (await getStore('catalog-cache').get(key, { type: 'json' })) as Entry<T> | null;
-        if (stored && stored.expiresAt > Date.now()) return stored.value;
-        return;
-      }
+      const remote = await (await platformStore())?.get(key);
+      if (remote) await memory.set(key, remote);
+      return remote ?? null;
     } catch {
-      // Optional dependency / not running on Netlify.
+      return null;
     }
-  }
-
-  try {
-    const cache = edgeCache();
-    if (cache) {
-      const hit = await cache.match(edgeRequest(key));
-      if (hit?.ok) return (await hit.json()) as T;
-    }
-  } catch {
-    // Ignore Cache API failures.
-  }
-}
-
-async function platformSet<T>(key: string, value: T): Promise<void> {
-  try {
-    if (catalogKv) {
-      await catalogKv.put(key, JSON.stringify(value), {
-        expirationTtl: CATALOG_CACHE_REVALIDATE_SECONDS,
-      });
-      return;
-    }
-  } catch {
-    // KV optional / not bound.
-  }
-
-  if (!import.meta.env.CLOUDFLARE) {
+  },
+  async set(key, entry) {
+    await memory.set(key, entry);
     try {
-      if (isVercel()) {
-        const { getCache } = await import('@vercel/functions');
-        await getCache({ namespace: 'catalog' }).set(key, value, {
-          tags: ['catalog'],
-          ttl: CATALOG_CACHE_REVALIDATE_SECONDS,
-        });
-        return;
-      }
+      await (await platformStore())?.set(key, entry);
     } catch {
-      // Optional dependency / not running on Vercel.
+      // Platform cache is best-effort.
     }
+  },
+  async delete(prefix) {
+    await memory.delete(prefix);
+    await (await platformStore())?.delete(prefix);
+  },
+};
 
-    try {
-      if (isNetlify()) {
-        const { getStore } = await import('@netlify/blobs');
-        await getStore('catalog-cache').setJSON(key, {
-          expiresAt: Date.now() + TTL_MS,
-          value,
-        });
-        return;
-      }
-    } catch {
-      // Optional dependency / not running on Netlify.
-    }
-  }
-
-  try {
-    const cache = edgeCache();
-    if (cache) {
-      await cache.put(
-        edgeRequest(key),
-        new Response(JSON.stringify(value), {
-          headers: {
-            'Cache-Control': `max-age=${CATALOG_CACHE_REVALIDATE_SECONDS}`,
-            'Content-Type': 'application/json',
-          },
-        }),
-      );
-    }
-  } catch {
-    // Ignore Cache API write failures.
-  }
-}
-
-export async function cacheLifeHours<T>(key: string, load: () => Promise<T>): Promise<T> {
-  const cached = memoryGet<T>(key);
-  if (cached !== undefined) return cached;
-
-  const pending = inflight.get(key);
-  if (pending) return pending as Promise<T>;
-
-  const next = (async () => {
-    const remote = await platformGet<T>(key);
-    if (remote !== undefined) {
-      memorySet(key, remote);
-      return remote;
-    }
-
-    const value = await load();
-    memorySet(key, value);
-    await platformSet(key, value);
-    return value;
-  })().finally(() => {
-    inflight.delete(key);
-  });
-
-  inflight.set(key, next);
-  return next;
-}
-
-export function withTtlCache<Args extends unknown[], Result>(
-  name: string,
-  fn: (...args: Args) => Promise<Result>,
-): (...args: Args) => Promise<Result> {
-  return (...args: Args) => cacheLifeHours(`${name}:${JSON.stringify(args)}`, () => fn(...args));
-}
+export const catalogCache = createCache({
+  store: tieredStore,
+  defaults: { ttl: CATALOG_CACHE_REVALIDATE_SECONDS * 1000 },
+});

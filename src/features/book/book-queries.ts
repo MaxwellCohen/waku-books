@@ -6,7 +6,7 @@ import { GENERATED_PREVIEW_BOOKS } from '@/features/book/book-preview-catalog';
 import type { BookFilters, BookQuery } from '@/features/book/book-utils';
 import { SAMPLE_BOOKS } from '@/features/book/data/sample-books';
 import { db } from '@/lib/db/drizzle';
-import { withTtlCache } from '@/lib/catalog-cache';
+import { catalogCache } from '@/lib/catalog-cache';
 import { authors, books, bookToAuthor } from '@/lib/db/schema';
 
 export type BookSummary = {
@@ -172,6 +172,12 @@ async function loadBookById(id: string): Promise<BookDetails | null> {
   return result[0] ?? null;
 }
 
-export const getBooksPage = withTtlCache('getBooksPage', loadBooksPage);
-export const getBooksCount = withTtlCache('getBooksCount', loadBooksCount);
-export const getBookById = withTtlCache('getBookById', loadBookById);
+export const getBooksPage = catalogCache.fn(loadBooksPage, {
+  key: (...args) => ['getBooksPage', ...args],
+});
+export const getBooksCount = catalogCache.fn(loadBooksCount, {
+  key: (...args) => ['getBooksCount', ...args],
+});
+export const getBookById = catalogCache.fn(loadBookById, {
+  key: (...args) => ['getBookById', ...args],
+});
