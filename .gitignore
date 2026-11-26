@@ -31,3 +31,8 @@ thumbhash_update_checkpoint.json
 
 # generated route types
 src/pages.gen.ts
+
+# feature tests
+/dist-ft-*
+/feature-tests/.report.json
+/feature-tests/.test-results/

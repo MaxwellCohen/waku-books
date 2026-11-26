@@ -1,0 +1,6 @@
+/* Feature-test marker: must arrive inline in the HTML, never via <link rel=stylesheet>. */
+.ft-inline-marker-7f3a {
+  outline: 3px dashed rgb(220, 38, 38);
+  padding: 1rem;
+  letter-spacing: 0.05em;
+}

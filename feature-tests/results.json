@@ -1,0 +1,86 @@
+{
+  "framework": "waku",
+  "repo": "waku-books",
+  "commit": "d5bc59535b02e78c2dff68e2bcdf01559380c925",
+  "ranAt": "2026-11-26T05:46:14.025Z",
+  "results": {
+    "css-inlining": {
+      "claimedLabel": "manual",
+      "status": "pass",
+      "method": "Hand-rolled: import route CSS with Vite `?inline`, render React 19 <style href precedence> (hoisted into <head>)",
+      "evidence": "<style data-precedence=\"default\" data-href=\"ft-css-inlining\"> in <head> holds .ft-inline-marker-7f3a; 1 linked stylesheet(s) (/assets/_layout-BKr1q7_a.css) don't contain it; computed outline=dashed",
+      "test": "feature-tests/css-inlining.spec.ts"
+    },
+    "font-optimization": {
+      "claimedLabel": "third-party",
+      "status": "pass",
+      "method": "@fontsource-variable/geist imported in styles.css (self-hosted, font-display: swap) + hand-added <link rel=preload as=font> via `?url`",
+      "evidence": "0 Google Fonts requests; 1 same-origin font request(s); 5 Geist @font-face rules all with font-display:swap; preload /assets/geist-latin-wght-normal-BgDaEnEv.woff2 — preload link is hand-written; Fontsource only supplies files + @font-face",
+      "test": "feature-tests/font-optimization.spec.ts"
+    },
+    "image-pipeline": {
+      "claimedLabel": "third-party",
+      "status": "pass",
+      "method": "vite-imagetools (build-time resize to 200/400/800w, webp/avif, `as=srcset`) + plain <img srcSet width height loading=lazy>",
+      "evidence": "srcset widths 200/400/800w with width/height; lazy img fetched only after scroll; /assets/ft-cover-a-HJittRLv.webp→image/webp, /assets/ft-cover-b-Ct0wLvm3.avif→image/avif",
+      "test": "feature-tests/image-pipeline.spec.ts"
+    },
+    "caching": {
+      "claimedLabel": "first-party",
+      "status": "pass",
+      "method": "waku-cache 0.0.2 (separate wakujs-org package) cache.fn with memoryStore, 4s TTL, cache.invalidate from a 'use server' action",
+      "evidence": "2 requests → same cached value 2@2026-11-26T05:45:14.635Z (uncached differed); after 4000ms TTL → 3@2026-11-26T05:45:19.417Z (then reused); after cache.invalidate server action → 4@2026-11-26T05:45:20.124Z (then reused) — needs `pnpm add waku-cache` (v0.0.x, outside waku core; 0.0.2 needs waku>=rc.4). Side finding: on Node 26 every src/pages/_api route throws 'TypeError: Illegal invocation' (undici Request duplex brand check in handleHttpRequest; seen on waku rc.0, not rechecked on rc.5), so invalidation uses a server action",
+      "suggestedLabel": "third-party",
+      "test": "feature-tests/caching.spec.ts"
+    },
+    "route-prefetching": {
+      "claimedLabel": "first-party",
+      "status": "pass",
+      "method": "useRouter().prefetch() on hover (stable) + <Link unstable_prefetchOnView> (experimental prop) from waku/router/client",
+      "evidence": "hover → /RSC/R/feature-tests/route-prefetching/hover.txt before click; scroll into view → /RSC/R/feature-tests/route-prefetching/view.txt before click — stable path is useRouter().prefetch() wired by hand to onMouseEnter; Link's automatic prefetch props are unstable_",
+      "test": "feature-tests/route-prefetching.spec.ts"
+    },
+    "islands": {
+      "claimedLabel": "first-party",
+      "status": "pass",
+      "method": "RSC server component (no client JS) + 'use client' counter island + <Slice id lazy> dynamic slice on a static page",
+      "evidence": "island counter → 2 after clicks; static marker absent from 21 JS files + HTML (island marker present); lazy slice fetched via /RSC/S/ft-server-island.txt",
+      "test": "feature-tests/islands.spec.ts"
+    },
+    "render-modes": {
+      "claimedLabel": "first-party",
+      "status": "pass",
+      "method": "Per-page getConfig({ render: 'static' | 'dynamic' })",
+      "evidence": "static: dist/public/.../static/index.html exists, served stamp 2026-11-26T05:44:58.751Z on both requests; dynamic: no HTML file, stamps 2026-11-26T05:46:12.263Z → 2026-11-26T05:46:12.338Z",
+      "test": "feature-tests/render-modes.spec.ts"
+    },
+    "reactivity": {
+      "claimedLabel": "third-party",
+      "status": "pass",
+      "method": "@preact/signals-react signal passed directly into JSX; useState counter as control",
+      "evidence": "signal text 0→3 with SignalCounter renders 1→1; useState control renders 1→4",
+      "test": "feature-tests/reactivity.spec.ts"
+    },
+    "bundle-analysis": {
+      "claimedLabel": "third-party",
+      "status": "pass",
+      "method": "rollup-plugin-visualizer added to waku.config.ts vite.plugins (client env) when ANALYZE=1",
+      "evidence": "dist-ft-analyze/analyze/stats.html (957975 B) + stats.json (2201 modules, includes signal-counter.tsx)",
+      "test": "feature-tests/bundle-analysis.spec.ts"
+    },
+    "third-party-scripts": {
+      "claimedLabel": "manual",
+      "status": "pass",
+      "method": "Hand-rolled: React 19-hoisted <script async> + LazyScript client component injecting after load/requestIdleCallback",
+      "evidence": "async tag in head (no blocking scripts); lazy script injected after load: ran at 196ms ≥ loadEventEnd 63ms; async ran at 58ms",
+      "test": "feature-tests/third-party-scripts.spec.ts"
+    },
+    "multi-host-deployment": {
+      "claimedLabel": "first-party",
+      "status": "pass",
+      "method": "Built-in adapters auto-selected by env: waku build with none / NETLIFY=1 / VERCEL=1 / CLOUDFLARE=1",
+      "evidence": "node: dist-ft-node/server/index.js, dist-ft-node/public/feature-tests/index.html | netlify: dist-ft-netlify/public/feature-tests/index.html, netlify-functions/serve.js | vercel: .vercel/output/config.json, .vercel/output/static/feature-tests/index.html, .vercel/output/functions/RSC.func/.vc-config.json | cloudflare: dist-ft-cloudflare/server/wrangler.json, dist-ft-cloudflare/public/feature-tests/index.html",
+      "test": "feature-tests/multi-host-deployment.spec.ts"
+    }
+  }
+}
