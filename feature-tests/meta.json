@@ -14,9 +14,9 @@
   },
   "caching": {
     "claimedLabel": "first-party",
-    "method": "waku-cache 0.0.1 (separate wakujs-org package) cache.fn with memoryStore, 4s TTL, cache.invalidate from a 'use server' action",
+    "method": "waku-cache 0.0.2 (separate wakujs-org package) cache.fn with memoryStore, 4s TTL, cache.invalidate from a 'use server' action",
     "suggestedLabel": "third-party",
-    "note": "needs `pnpm add waku-cache` (v0.0.x, outside waku core; 0.0.2 needs waku>=rc.4). Side finding: on Node 26 every src/pages/_api route throws 'TypeError: Illegal invocation' (undici Request duplex brand check in waku rc.0 handleHttpRequest), so invalidation uses a server action"
+    "note": "needs `pnpm add waku-cache` (v0.0.x, outside waku core; 0.0.2 needs waku>=rc.4). Side finding: on Node 26 every src/pages/_api route throws 'TypeError: Illegal invocation' (undici Request duplex brand check in handleHttpRequest; seen on waku rc.0, not rechecked on rc.5), so invalidation uses a server action"
   },
   "route-prefetching": {
     "claimedLabel": "first-party",
