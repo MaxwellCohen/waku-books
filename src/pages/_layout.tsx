@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { Suspense } from 'react';
+import { FontPreload } from '@/components/font-preload';
 import { MobileBookSidebar, MobileBookSidebarTrigger } from '@/components/mobile-book-sidebar';
 import { OfflineIndicator } from '@/components/offline-indicator';
 import { ThemeProvider } from '@/components/theme/theme-provider';
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
       <meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)" />
       <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+      <FontPreload />
       <meta property="og:description" content={description} />
       <meta property="og:site_name" content="Waku Books" />
       <meta property="og:title" content="Waku Books" />
