@@ -50,38 +50,61 @@ export function htmlResponseWithCacheHeaders(_request: Request, response: Respon
   });
 }
 
-type KvBinding = {
-  get(key: string): Promise<unknown>;
-  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
-  delete(key: string): Promise<void>;
-};
-
-let kvBinding: KvBinding | undefined;
-
-/** Bind Workers KV so catalog queries persist across isolates (like Next `use cache`). */
-export function bindCatalogCache(kv: KvBinding | undefined) {
-  if (kv) kvBinding = kv;
+/**
+ * Cloudflare's per-data-center Cache API (`caches.default`). Unlike Workers KV it is
+ * free with no daily write cap. It can't list keys, so `delete` drops only the exact key.
+ */
+function cloudflareCacheStore(cache: Cache): CacheStore {
+  // Cache API keys must be https URLs; segments arrive percent-encoded.
+  const requestOf = (key: readonly string[]) =>
+    new Request(`https://example.com/waku-books-catalog-cache/v1/${key.join('/')}`);
+  return {
+    async get(key) {
+      const hit = await cache.match(requestOf(key));
+      if (!hit) return null;
+      const expiresAt = hit.headers.get('X-Expires-At');
+      return {
+        value: new Uint8Array(await hit.arrayBuffer()),
+        createdAt: Number(hit.headers.get('X-Created-At')),
+        ...(expiresAt ? { expiresAt: Number(expiresAt) } : {}),
+      };
+    },
+    async set(key, entry) {
+      const ttlSeconds =
+        entry.expiresAt !== undefined
+          ? Math.max(1, Math.ceil((entry.expiresAt - Date.now()) / 1000))
+          : CATALOG_CACHE_EXPIRE_SECONDS;
+      const headers = new Headers({
+        'Cache-Control': `max-age=${ttlSeconds}`,
+        'X-Created-At': String(entry.createdAt),
+      });
+      if (entry.expiresAt !== undefined) headers.set('X-Expires-At', String(entry.expiresAt));
+      await cache.put(requestOf(key), new Response(entry.value as Uint8Array<ArrayBuffer>, { headers }));
+    },
+    async delete(prefix) {
+      await cache.delete(requestOf(prefix));
+    },
+  };
 }
 
 let platform: Promise<CacheStore | null> | undefined;
 
-/** The host's shared store (Workers KV, Vercel Runtime Cache, Netlify Blobs), via unstorage. */
+/** The host's shared store: Cache API on Cloudflare, Vercel Runtime Cache or Netlify Blobs via unstorage. */
 function platformStore(): Promise<CacheStore | null> {
   return (platform ??= (async () => {
+    if (import.meta.env.CLOUDFLARE) {
+      const cache = (globalThis.caches as (CacheStorage & { default?: Cache }) | undefined)?.default;
+      return cache ? cloudflareCacheStore(cache) : null;
+    }
+    // Keep @vercel/functions and @netlify/blobs out of the Worker bundle.
+    // Rolldown otherwise injects createRequire() and CF deploy validation fails.
     let driver: Driver | undefined;
-    if (kvBinding) {
-      const { default: cloudflareKV } = await import('unstorage/drivers/cloudflare-kv-binding');
-      driver = cloudflareKV({ binding: kvBinding });
-    } else if (!import.meta.env.CLOUDFLARE) {
-      // Keep @vercel/functions and @netlify/blobs out of the Worker bundle.
-      // Rolldown otherwise injects createRequire() and CF deploy validation fails.
-      if (isVercel()) {
-        const { default: vercelRuntimeCache } = await import('unstorage/drivers/vercel-runtime-cache');
-        driver = vercelRuntimeCache({ base: 'catalog', tags: ['catalog'] });
-      } else if (isNetlify()) {
-        const { default: netlifyBlobs } = await import('unstorage/drivers/netlify-blobs');
-        driver = netlifyBlobs({ name: 'catalog-cache' });
-      }
+    if (isVercel()) {
+      const { default: vercelRuntimeCache } = await import('unstorage/drivers/vercel-runtime-cache');
+      driver = vercelRuntimeCache({ base: 'catalog', tags: ['catalog'] });
+    } else if (isNetlify()) {
+      const { default: netlifyBlobs } = await import('unstorage/drivers/netlify-blobs');
+      driver = netlifyBlobs({ name: 'catalog-cache' });
     }
     return driver ? unstorageStore(createStorage({ driver })) : null;
   })().catch(() => null));
